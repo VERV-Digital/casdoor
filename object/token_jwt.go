@@ -32,8 +32,9 @@ type Claims struct {
 }
 
 type UserShort struct {
-	Owner string `xorm:"varchar(100) notnull pk" json:"owner"`
-	Name  string `xorm:"varchar(100) notnull pk" json:"name"`
+	Owner string       `xorm:"varchar(100) notnull pk" json:"owner"`
+	Name  string       `xorm:"varchar(100) notnull pk" json:"name"`
+	Roles []*ShortRole `json:"roles"`
 }
 
 type ClaimsShort struct {
@@ -48,6 +49,7 @@ func getShortUser(user *User) *UserShort {
 	res := &UserShort{
 		Owner: user.Owner,
 		Name:  user.Name,
+		Roles: GetShortRolesByUser(user.GetId()),
 	}
 	return res
 }
@@ -63,7 +65,12 @@ func getShortClaims(claims Claims) ClaimsShort {
 	return res
 }
 
-func generateJwtToken(application *Application, user *User, nonce string, scope string, host string) (string, string, string, error) {
+func generateJwtToken(application *Application, user *User, nonce string, scope string, host string) (
+	string,
+	string,
+	string,
+	error,
+) {
 	nowTime := time.Now()
 	expireTime := nowTime.Add(time.Duration(application.ExpireInHours) * time.Hour)
 	refreshExpireTime := nowTime.Add(time.Duration(application.RefreshExpireInHours) * time.Hour)
@@ -129,19 +136,21 @@ func generateJwtToken(application *Application, user *User, nonce string, scope 
 }
 
 func ParseJwtToken(token string, cert *Cert) (*Claims, error) {
-	t, err := jwt.ParseWithClaims(token, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
+	t, err := jwt.ParseWithClaims(
+		token, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 
-		// RSA certificate
-		certificate, err := jwt.ParseRSAPublicKeyFromPEM([]byte(cert.Certificate))
-		if err != nil {
-			return nil, err
-		}
+			// RSA certificate
+			certificate, err := jwt.ParseRSAPublicKeyFromPEM([]byte(cert.Certificate))
+			if err != nil {
+				return nil, err
+			}
 
-		return certificate, nil
-	})
+			return certificate, nil
+		},
+	)
 
 	if t != nil {
 		if claims, ok := t.Claims.(*Claims); ok && t.Valid {
