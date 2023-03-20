@@ -80,5 +80,6 @@ func main() {
 
 	go controllers.StartLdapServer()
 
+	logs.Info("Config:", fmt.Sprintf("%+v\n", beego.BConfig))
 	beego.Run(fmt.Sprintf(":%v", port))
 }
